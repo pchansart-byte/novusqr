@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f7fb">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <title>NovusQR</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #172033;
+      background: #f5f7fb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    main {
+      width: min(100%, 440px);
+      padding: 36px;
+      border: 1px solid #e4e8f0;
+      border-radius: 20px;
+      background: #fff;
+      box-shadow: 0 16px 48px rgb(23 32 51 / 8%);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.8rem;
+      letter-spacing: -0.04em;
+    }
+
+    .intro {
+      margin: 10px 0 28px;
+      color: #647087;
+      line-height: 1.55;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+      font-weight: 650;
+    }
+
+    input {
+      width: 100%;
+      min-height: 48px;
+      padding: 0 14px;
+      border: 1px solid #d8deea;
+      border-radius: 10px;
+      outline: none;
+      font: inherit;
+    }
+
+    input::placeholder {
+      color: #647087;
+      font-weight: 700;
+      opacity: 1;
+    }
+
+    input:focus {
+      border-color: #5368e8;
+      box-shadow: 0 0 0 3px rgb(83 104 232 / 14%);
+    }
+
+    .color-control {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 18px;
+      color: #172033;
+      font-size: 0.9rem;
+      font-weight: 650;
+    }
+
+    input[type="color"] {
+      width: 48px;
+      min-height: 40px;
+      padding: 4px;
+      border: 1px solid #d8deea;
+      border-radius: 10px;
+      background: white;
+      cursor: pointer;
+    }
+
+    button {
+      width: 100%;
+      min-height: 48px;
+      margin-top: 12px;
+      border: 0;
+      border-radius: 10px;
+      background: #4358db;
+      color: white;
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #3549c6;
+    }
+
+    button:focus-visible {
+      outline: 3px solid rgb(83 104 232 / 35%);
+      outline-offset: 2px;
+    }
+
+    .result {
+      margin-top: 24px;
+      text-align: center;
+    }
+
+    #share-image {
+      display: block;
+      width: min(100%, 320px);
+      height: auto;
+      margin: 0 auto;
+      border-radius: 16px;
+      box-shadow: 0 12px 28px rgb(23 32 51 / 16%);
+    }
+
+    #qr-source {
+      position: fixed;
+      top: 0;
+      left: -10000px;
+      width: 660px;
+      height: 660px;
+      overflow: hidden;
+    }
+
+    #download {
+      background: #eef1ff;
+      color: #3347c5;
+    }
+
+    #download:hover {
+      background: #e1e6ff;
+    }
+
+    .note,
+    .message {
+      margin: 16px 0 0;
+      color: #647087;
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+
+    .message {
+      color: #b42318;
+      text-align: left;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    @media (max-width: 480px) {
+      main {
+        padding: 28px 22px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Tu enlace, en QR</h1>
+    <p class="intro">Pega un enlace y descarga tu código QR en segundos.</p>
+
+    <form id="qr-form">
+      <label for="link">Enlace</label>
+      <input
+        id="link"
+        name="link"
+        type="url"
+        placeholder="Pega tu enlace aquí"
+        autocomplete="url"
+        required
+      >
+      <label class="color-control" for="frame-color">
+        Color del marco
+        <input id="frame-color" name="frame-color" type="color" value="#164D70">
+      </label>
+      <button type="submit">Generar QR</button>
+      <p id="message" class="message" role="alert" hidden></p>
+    </form>
+
+    <section id="result" class="result" aria-live="polite" hidden>
+      <img id="share-image" alt="Diseño para compartir con un código QR">
+      <button id="download" type="button">Descargar imagen PNG</button>
+    </section>
+
+    <p class="note">El QR contiene el enlace directamente: no caduca ni depende de redirecciones. El destino debe seguir activo para que el enlace funcione.</p>
+  </main>
+
+  <div id="qr-source" aria-hidden="true"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script>
+    const form = document.querySelector("#qr-form");
+    const linkInput = document.querySelector("#link");
+    const result = document.querySelector("#result");
+    const qrSource = document.querySelector("#qr-source");
+    const shareImage = document.querySelector("#share-image");
+    const message = document.querySelector("#message");
+    const downloadButton = document.querySelector("#download");
+    const frameColorInput = document.querySelector("#frame-color");
+    let currentDestination = null;
+    let currentQrCanvas = null;
+
+    function roundedRect(context, x, y, width, height, radius) {
+      context.beginPath();
+      context.roundRect(x, y, width, height, radius);
+      context.fill();
+    }
+
+    function fitText(context, text, maxWidth) {
+      let fittedText = text;
+      while (fittedText.length > 1 && context.measureText(fittedText).width > maxWidth) {
+        fittedText = `${fittedText.slice(0, -2)}…`;
+      }
+      return fittedText;
+    }
+
+    function createShareImage(qrCanvas, siteName, frameColor) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1080;
+      canvas.height = 1350;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        throw new Error("Canvas is not available");
+      }
+
+      context.fillStyle = frameColor;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+
+      context.fillStyle = "#ffffff";
+      roundedRect(context, 72, 72, 936, 1206, 48);
+
+      context.imageSmoothingEnabled = false;
+      context.drawImage(qrCanvas, 210, 225, 660, 660);
+      context.imageSmoothingEnabled = true;
+
+      context.textAlign = "center";
+      context.fillStyle = "#7765e8";
+      context.font = "700 26px system-ui, sans-serif";
+      context.fillText("UN ACCESO DIRECTO", 540, 970);
+
+      context.font = "650 34px system-ui, sans-serif";
+      const label = fitText(context, siteName, 590);
+      const labelWidth = Math.max(300, Math.min(700, context.measureText(label).width + 100));
+      context.fillStyle = "#f0edff";
+      roundedRect(context, (canvas.width - labelWidth) / 2, 995, labelWidth, 84, 42);
+
+      context.fillStyle = "#4935c7";
+      context.font = "650 34px system-ui, sans-serif";
+      context.fillText(label, 540, 1050);
+
+      context.fillStyle = "#8890a2";
+      context.font = "500 22px system-ui, sans-serif";
+      context.fillText("APUNTA LA CÁMARA DE TU MÓVIL", 540, 1168);
+
+      return canvas.toDataURL("image/png");
+    }
+
+    function updateShareImage() {
+      const siteName = currentDestination.hostname.replace(/^www\./i, "");
+      shareImage.src = createShareImage(currentQrCanvas, siteName, frameColorInput.value);
+      shareImage.alt = `Diseño para compartir con un código QR para ${siteName}`;
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      message.hidden = true;
+      result.hidden = true;
+      qrSource.replaceChildren();
+
+      if (!window.QRCode) {
+        message.textContent = "No se pudo cargar el generador de QR. Comprueba tu conexión e inténtalo de nuevo.";
+        message.hidden = false;
+        return;
+      }
+
+      let destination;
+      try {
+        destination = new URL(linkInput.value.trim());
+      } catch {
+        message.textContent = "Escribe un enlace válido, incluyendo https://.";
+        message.hidden = false;
+        return;
+      }
+
+      if (destination.protocol !== "https:" && destination.protocol !== "http:") {
+        message.textContent = "El enlace debe comenzar con http:// o https://.";
+        message.hidden = false;
+        return;
+      }
+
+      try {
+        new QRCode(qrSource, {
+          text: destination.href,
+          width: 660,
+          height: 660,
+          colorDark: "#172033",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M
+        });
+        const qrCanvas = qrSource.querySelector("canvas");
+        if (!qrCanvas) {
+          throw new Error("QR canvas was not created");
+        }
+        currentDestination = destination;
+        currentQrCanvas = qrCanvas;
+        updateShareImage();
+        result.hidden = false;
+      } catch {
+        message.textContent = "No se pudo generar el QR. Prueba con un enlace más corto.";
+        message.hidden = false;
+      }
+    });
+
+    frameColorInput.addEventListener("input", () => {
+      if (currentQrCanvas && currentDestination) {
+        updateShareImage();
+      }
+    });
+
+    downloadButton.addEventListener("click", () => {
+      if (!shareImage.src) {
+        message.textContent = "La imagen aún no está lista. Inténtalo de nuevo.";
+        message.hidden = false;
+        return;
+      }
+
+      const downloadLink = document.createElement("a");
+      downloadLink.href = shareImage.src;
+      downloadLink.download = "codigo-qr-para-compartir.png";
+      downloadLink.click();
+    });
+  </script>
+</body>
+</html>
